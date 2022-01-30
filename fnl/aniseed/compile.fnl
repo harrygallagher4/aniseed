@@ -1,22 +1,24 @@
 (module aniseed.compile
   {autoload {a aniseed.core
+             s aniseed.string
              fs aniseed.fs
              nvim aniseed.nvim
              fennel aniseed.fennel}})
 
+(defn macros-strs [mods]
+  (->> (if (a.string? mods) [mods] mods)
+       (a.concat [:aniseed.macros])
+       (a.map #(string.format "(require-macros \"%s\")" $))
+       (s.join "\n")))
+
 (defn macros-prefix [code opts]
-  (let [macros-module :aniseed.macros
+  (let [macros-modules (macros-strs (a.get opts :macros))
         filename (-?> (a.get opts :filename)
-                      (string.gsub
-                        (.. (nvim.fn.getcwd) fs.path-sep)
-                        ""))]
-    (.. "(local *file* "
-        (if filename
-          (.. "\"" (string.gsub filename "\\" "\\\\") "\"")
-          "nil")
-        ")"
-        "(require-macros \"" macros-module "\")\n"
-        "(wrap-module-body " (or code "") ")")))
+                      (string.gsub (.. (nvim.fn.getcwd) fs.path-sep) "")
+                      (string.gsub "\\" "\\\\"))]
+    (string.format
+      "(local *file* \"%s\")\n%s\n(wrap-module-body\n%s\n)"
+      (or filename "nil") macros-modules (or code ""))))
 
 ;; Magic strings from the macros that allow us to emit clean code.
 (def marker-prefix "ANISEED_")
